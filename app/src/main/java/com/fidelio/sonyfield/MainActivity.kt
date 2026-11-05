@@ -19,6 +19,8 @@ class MainActivity : Activity(), SensorEventListener {
     private var pitch = 0f
     private var zeroRoll = 0f
     private var zeroPitch = 0f
+    private var rawRoll = 0f
+    private var rawPitch = 0f
     private var peaking = true
     private var falseColor = false
     private var threshold = 45
@@ -36,14 +38,14 @@ class MainActivity : Activity(), SensorEventListener {
         }
         monitor = MonitorView()
         status = TextView(this).apply {
-            text = "DEMO | Sin video USB Sony | Touch Tracking no disponible"
+            text = "v0.2 DIAGNOSTICO | USB Streaming Sony firmware 5.00+ | Sin captura UVC aun"
             setTextColor(Color.WHITE)
             textSize = 13f
         }
-        button("CERO") { zeroRoll = roll + zeroRoll; zeroPitch = pitch + zeroPitch; monitor.invalidate() }
+        button("CERO") { zeroRoll = rawRoll; zeroPitch = rawPitch; monitor.invalidate() }
         button("PEAK") { peaking = !peaking; monitor.invalidate() }
         button("FALSE COLOR") { falseColor = !falseColor; monitor.invalidate() }
-        button("USB") { status.text = bridge.usbStatus() }
+        button("USB") { status.text = bridge.usbStatus() + " | Para video UVC falta integrar decodificador" }
         bar.addView(SeekBar(this).apply {
             max = 100; progress = threshold
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -71,8 +73,12 @@ class MainActivity : Activity(), SensorEventListener {
         if (event.sensor.type != Sensor.TYPE_ACCELEROMETER) return
         for (i in 0..2) gravity[i] = gravity[i] * 0.85f + event.values[i] * 0.15f
         val x = gravity[0]; val y = gravity[1]; val z = gravity[2]
-        roll = Math.toDegrees(atan2(x.toDouble(), sqrt((y*y+z*z).toDouble()))).toFloat() - zeroRoll
-        pitch = Math.toDegrees(atan2(y.toDouble(), sqrt((x*x+z*z).toDouble()))).toFloat() - zeroPitch
+        // Landscape: phone X axis follows the long edge of the screen.
+        // atan2(y, -x) is the in-plane screen angle, centered at landscape horizontal.
+        rawRoll = Math.toDegrees(atan2(y.toDouble(), -x.toDouble())).toFloat()
+        rawPitch = Math.toDegrees(atan2(z.toDouble(), sqrt((x*x+y*y).toDouble()))).toFloat()
+        roll = ((rawRoll - zeroRoll + 540f) % 360f) - 180f
+        pitch = rawPitch - zeroPitch
         monitor.invalidate()
     }
     inner class MonitorView : View(this@MainActivity) {
@@ -119,8 +125,12 @@ class MainActivity : Activity(), SensorEventListener {
             val cx = width / 2f; val cy = height / 2f
             paint.color = if (abs(roll) < 1.5f) Color.GREEN else Color.YELLOW
             paint.strokeWidth = 5f
-            val offset = (roll * 5f).coerceIn(-height * .4f, height * .4f)
-            canvas.drawLine(cx - 110f, cy + offset, cx + 110f, cy + offset, paint)
+            // Rotate the electronic horizon in landscape, not merely move it vertically.
+            val angle = Math.toRadians(roll.toDouble())
+            val dx = (cos(angle) * 130).toFloat()
+            val dy = (sin(angle) * 130).toFloat()
+            canvas.drawLine(cx - dx, cy - dy, cx + dx, cy + dy, paint)
+            canvas.drawCircle(cx, cy, 7f, paint)
             paint.color = Color.WHITE; paint.textSize = 24f
             canvas.drawText("ROLL %.1f  PITCH %.1f".format(roll, pitch), 18f, height - 24f, paint)
             if (tapX >= 0) {
