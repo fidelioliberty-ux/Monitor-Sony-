@@ -14,6 +14,8 @@ class MainActivity : Activity(), SensorEventListener {
     private lateinit var monitor: MonitorView
     private lateinit var status: TextView
     private lateinit var bridge: CameraBridge
+    private lateinit var externalCamera: ExternalCamera
+    private lateinit var preview: TextureView
     private val gravity = FloatArray(3)
     private var roll = 0f
     private var pitch = 0f
@@ -45,7 +47,7 @@ class MainActivity : Activity(), SensorEventListener {
         button("CERO") { zeroRoll = rawRoll; zeroPitch = rawPitch; monitor.invalidate() }
         button("PEAK") { peaking = !peaking; monitor.invalidate() }
         button("FALSE COLOR") { falseColor = !falseColor; monitor.invalidate() }
-        button("USB") { status.text = bridge.usbStatus() + " | Para video UVC falta integrar decodificador" }
+        button("USB") { status.text = bridge.usbStatus() + " | buscando UVC en Camera2"; externalCamera.start() }
         bar.addView(SeekBar(this).apply {
             max = 100; progress = threshold
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -57,9 +59,15 @@ class MainActivity : Activity(), SensorEventListener {
             })
         }, LinearLayout.LayoutParams(180, 54))
         root.addView(bar)
-        root.addView(monitor, LinearLayout.LayoutParams(-1, 0, 1f))
+        val screen = FrameLayout(this)
+        preview = TextureView(this)
+        screen.addView(preview, FrameLayout.LayoutParams(-1, -1))
+        screen.addView(monitor, FrameLayout.LayoutParams(-1, -1))
+        root.addView(screen, LinearLayout.LayoutParams(-1, 0, 1f))
         root.addView(status)
         setContentView(root)
+        externalCamera = ExternalCamera(this, preview) { message -> status.text = message }
+        externalCamera.start()
     }
     override fun onResume() {
         super.onResume()
@@ -68,6 +76,11 @@ class MainActivity : Activity(), SensorEventListener {
         }
     }
     override fun onPause() { sensors.unregisterListener(this); super.onPause() }
+    override fun onDestroy() { externalCamera.stop(); super.onDestroy() }
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 101 && grantResults.firstOrNull() == android.content.pm.PackageManager.PERMISSION_GRANTED) externalCamera.start()
+    }
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
     override fun onSensorChanged(event: SensorEvent) {
         if (event.sensor.type != Sensor.TYPE_ACCELEROMETER) return
@@ -96,9 +109,11 @@ class MainActivity : Activity(), SensorEventListener {
         private val pixels = IntArray(640 * 360).also { demo.getPixels(it, 0, 640, 0, 0, 640, 360) }
         private var tapX = -1f
         private var tapY = -1f
+        private var showDemo = false
         override fun onDraw(canvas: Canvas) {
             super.onDraw(canvas)
             val bounds = RectF(0f, 0f, width.toFloat(), height.toFloat())
+            if (showDemo) {
             val transformed = IntArray(pixels.size)
             for (y in 0 until 360) for (x in 0 until 640) {
                 val i = y * 640 + x
@@ -122,6 +137,7 @@ class MainActivity : Activity(), SensorEventListener {
             paint.color = Color.WHITE; paint.alpha = 255
             canvas.drawBitmap(frame, null, bounds, paint)
             frame.recycle()
+            }
             val cx = width / 2f; val cy = height / 2f
             paint.color = if (abs(roll) < 1.5f) Color.GREEN else Color.YELLOW
             paint.strokeWidth = 5f
