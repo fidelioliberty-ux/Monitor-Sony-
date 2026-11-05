@@ -40,14 +40,14 @@ class MainActivity : Activity(), SensorEventListener {
         }
         monitor = MonitorView()
         status = TextView(this).apply {
-            text = "v0.2 DIAGNOSTICO | USB Streaming Sony firmware 5.00+ | Sin captura UVC aun"
+            text = "v0.3 DIAGNOSTICO | Sony Remote Shooting (PTP) | Live View aun no implementado"
             setTextColor(Color.WHITE)
             textSize = 13f
         }
         button("CERO") { zeroRoll = rawRoll; zeroPitch = rawPitch; monitor.invalidate() }
         button("PEAK") { peaking = !peaking; monitor.invalidate() }
         button("FALSE COLOR") { falseColor = !falseColor; monitor.invalidate() }
-        button("USB") { status.text = bridge.usbStatus() + " | buscando UVC en Camera2"; externalCamera.start() }
+        button("USB PTP") { status.text = bridge.usbStatus() + "\nRemote Shooting: protocolo PTP Sony / Live View pendiente" }
         bar.addView(SeekBar(this).apply {
             max = 100; progress = threshold
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -67,7 +67,8 @@ class MainActivity : Activity(), SensorEventListener {
         root.addView(status)
         setContentView(root)
         externalCamera = ExternalCamera(this, preview) { message -> status.text = message }
-        externalCamera.start()
+        // Camera2 UVC is not the correct connection path for Sony Remote Shooting.
+        // Leave preview inactive until the Sony PTP live-view transport is implemented.
     }
     override fun onResume() {
         super.onResume()
