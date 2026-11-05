@@ -140,7 +140,7 @@ class MainActivity : Activity(), SensorEventListener {
             frame.recycle()
             }
             val cx = width / 2f; val cy = height / 2f
-            paint.color = if (abs(roll) < 1.5f) Color.GREEN else Color.YELLOW
+            paint.color = if (abs(roll) < 1.5f) Color.GREEN else Color.WHITE
             paint.strokeWidth = 5f
             // Rotate the electronic horizon in landscape, not merely move it vertically.
             val angle = Math.toRadians(roll.toDouble())
